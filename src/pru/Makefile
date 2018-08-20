@@ -18,6 +18,9 @@ CFLAGS_pru1.elf := $(CFLAGS)
 src-y += pru/main.c pru/gpio.c generic/timer_irq.c
 src-$(CONFIG_HAVE_GPIO_ADC) += pru/adc.c
 
+# XXX
+src-y := $(filter-out tmcuart.c, $(src-y))
+
 pru0-y := pru/pru0.c generic/crc16_ccitt.c command.c
 pru0-y += ../lib/pru_rpmsg/pru_rpmsg.c ../lib/pru_rpmsg/pru_virtqueue.c
 
