@@ -6,6 +6,9 @@
 import math, logging, collections
 
 TMC_FREQUENCY=12000000.
+GCONF_PDN_DISABLE = 1<<6
+GCONF_MSTEP_REG_SELECT = 1<<7
+GCONF_MULTISTEP_FILT = 1<<8
 
 Registers = {
     "GCONF": 0x00, "GSTAT": 0x01, "IFCNT": 0x02, "SLAVECONF": 0x03,
@@ -148,7 +151,9 @@ class TMC2208:
         # Configure registers
         self.ifcnt = None
         self.init_regs = collections.OrderedDict()
-        self.init_regs['GCONF'] = ((sc_velocity == 0.) << 2) | (1<<8)
+        self.init_regs['GCONF'] = (
+            ((sc_velocity == 0.) << 2) | GCONF_PDN_DISABLE
+            | GCONF_MSTEP_REG_SELECT | GCONF_MULTISTEP_FILT)
         self.init_regs['CHOPCONF'] = (
             toff | (hstrt << 4) | (hend << 7) | (blank_time_select << 15)
             | (vsense << 17) | (self.mres << 24) | (interpolate << 28))
