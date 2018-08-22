@@ -131,15 +131,18 @@ class TMC2208:
         sc_threshold = self.velocity_to_clock(config, sc_velocity)
         iholddelay = config.getint('driver_IHOLDDELAY', 8, minval=0, maxval=15)
         tpowerdown = config.getint('driver_TPOWERDOWN', 20, minval=0, maxval=255)
-        blank_time_select = config.getint('driver_BLANK_TIME_SELECT', 1,
+        blank_time_select = config.getint('driver_BLANK_TIME_SELECT', 2,
                                           minval=0, maxval=3)
-        toff = config.getint('driver_TOFF', 4, minval=1, maxval=15)
-        hend = config.getint('driver_HEND', 7, minval=0, maxval=15)
-        hstrt = config.getint('driver_HSTRT', 0, minval=0, maxval=7)
-        pwm_scale = config.getboolean('driver_PWM_AUTOSCALE', True)
+        toff = config.getint('driver_TOFF', 3, minval=1, maxval=15)
+        hend = config.getint('driver_HEND', 0, minval=0, maxval=15)
+        hstrt = config.getint('driver_HSTRT', 5, minval=0, maxval=7)
+        pwm_autograd = config.getboolean('driver_PWM_AUTOGRAD', True)
+        pwm_autoscale = config.getboolean('driver_PWM_AUTOSCALE', True)
+        pwm_lim = config.getint('driver_PWM_LIM', 12, minval=0, maxval=15)
+        pwm_reg = config.getint('driver_PWM_REG', 8, minval=0, maxval=15)
         pwm_freq = config.getint('driver_PWM_FREQ', 1, minval=0, maxval=3)
-        pwm_grad = config.getint('driver_PWM_GRAD', 4, minval=0, maxval=255)
-        pwm_ampl = config.getint('driver_PWM_AMPL', 128, minval=0, maxval=255)
+        pwm_grad = config.getint('driver_PWM_GRAD', 14, minval=0, maxval=255)
+        pwm_ofs = config.getint('driver_PWM_OFS', 36, minval=0, maxval=255)
         # calculate current
         vsense = False
         irun = self.current_bits(run_current, sense_resistor, vsense)
@@ -160,8 +163,10 @@ class TMC2208:
         self.init_regs['IHOLD_IRUN'] = ihold | (irun << 8) | (iholddelay << 16)
         self.init_regs['TPOWERDOWN'] = tpowerdown
         self.init_regs['TPWMTHRS'] = max(0, min(0xfffff, sc_threshold))
-        self.init_regs['PWMCONF'] = (pwm_ampl | (pwm_grad << 8)
-                                     | (pwm_freq << 16) | (pwm_scale << 18))
+        self.init_regs['PWMCONF'] = (
+            pwm_ofs | (pwm_grad << 8) | (pwm_freq << 16)
+            | (pwm_autoscale << 18) | (pwm_autograd << 18)
+            | (pwm_reg << 24) | (pwm_lim << 28))
     def current_bits(self, current, sense_resistor, vsense_on):
         sense_resistor += 0.020
         vsense = 0.32
