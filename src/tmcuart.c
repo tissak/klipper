@@ -116,14 +116,17 @@ static uint_fast8_t
 tmcuart_send_event(struct timer *timer)
 {
     struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    // Toggle uart output
     gpio_out_toggle_noirq(t->tx_pin);
     t->flags ^= TU_LINE_HIGH;
+    // Determine next toggle time
     uint8_t line_state = t->flags & TU_LINE_HIGH;
     uint32_t bit_time = t->bit_time, next = bit_time;
     uint8_t pos = t->pos;
     for (;;) {
         pos++;
         if (pos >= t->write_count) {
+            // No more toggles necessary - schedule finish event
             t->timer.func = tmcuart_send_finish_event;
             t->timer.waketime += next;
             return SF_RESCHEDULE;
@@ -143,16 +146,20 @@ static uint_fast8_t
 tmcuart_send_sync_event(struct timer *timer)
 {
     struct tmcuart_s *t = container_of(timer, struct tmcuart_s, timer);
+    // Toggle uart output and note toggle time
     gpio_out_toggle_noirq(t->tx_pin);
     uint32_t cur = timer_read_time();
     t->flags ^= TU_LINE_HIGH;
+    // Determine next wakeup time
     t->pos++;
     if (t->pos == 1) {
+        // Start bit just sent - record time for later use
         t->bit_time = cur;
     } else if (t->pos >= 5) {
+        // Last bit of sync nibble just sent - calculate actual baud rate used
         t->bit_time = DIV_ROUND_CLOSEST(cur - t->bit_time, 4);
         t->timer.func = tmcuart_send_event;
-        t->timer.waketime = cur + t->bit_time; // XXX - support larger delay
+        t->timer.waketime = cur + t->bit_time;
         return SF_RESCHEDULE;
     }
     t->timer.waketime += t->cfg_bit_time;
@@ -182,7 +189,7 @@ command_tmcuart_send(uint32_t *args)
 {
     struct tmcuart_s *t = oid_lookup(args[0], command_config_tmcuart);
     if (t->flags & TU_ACTIVE)
-        // Silently drop this request (host should retransmit)
+        // Uart is busy - silently drop this request (host should retransmit)
         return;
     uint8_t write_len = args[1];
     uint8_t *write = (void*)(size_t)args[2];
@@ -194,7 +201,7 @@ command_tmcuart_send(uint32_t *args)
     t->flags = (t->flags & (TU_LINE_HIGH|TU_PULLUP|TU_SINGLE_WIRE)) | TU_ACTIVE;
     t->write_count = write_len * 8;
     t->read_count = read_len * 8;
-    if (write_len > 1 && (t->data[0] & 0x3f) == 0x2a) {
+    if (write_len >= 1 && (t->data[0] & 0x3f) == 0x2a) {
         t->timer.func = tmcuart_send_sync_event;
     } else {
         t->bit_time = t->cfg_bit_time;
