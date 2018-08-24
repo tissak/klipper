@@ -219,11 +219,11 @@ class TMC2208:
                 return
         raise self.printer.config_error(
             "Unable to write tmc2208 '%s' register %s" % (self.name, reg_name))
-    cmd_DUMP_TMC_help = "Read and display TMC2130 registers"
+    cmd_DUMP_TMC_help = "Read and display TMC stepper driver registers"
     def cmd_DUMP_TMC(self, params):
         self.printer.lookup_object('toolhead').get_last_move_time()
         gcode = self.printer.lookup_object('gcode')
-        logging.info("DUMP_TMC2130 %s", self.name)
+        logging.info("DUMP_TMC %s", self.name)
         for reg_name in ReadRegisters:
             val = self.get_register(reg_name)
             msg = "%-15s %08x" % (reg_name + ":", val)
