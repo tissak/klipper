@@ -186,8 +186,8 @@ class TMC2208:
     def build_config(self):
         bit_ticks = int(self.mcu.get_adjusted_freq() / 9000.)
         self.mcu.add_config_cmd(
-            "config_tmcuart oid=%d rx_pin=%s pull_up=0 tx_pin=%s bit_time=%d"
-            % (self.oid, self.rx_pin, self.tx_pin, bit_ticks))
+            "config_tmcuart oid=%d rx_pin=%s pull_up=%d tx_pin=%s bit_time=%d"
+            % (self.oid, self.rx_pin, self.pullup, self.tx_pin, bit_ticks))
         cmd_queue = self.mcu.alloc_command_queue()
         self.tmcuart_send_cmd = self.mcu.lookup_command(
             "tmcuart_send oid=%c write=%*s read=%c", cq=cmd_queue)
