@@ -165,7 +165,7 @@ class TMC2208:
         self.init_regs['TPWMTHRS'] = max(0, min(0xfffff, sc_threshold))
         self.init_regs['PWMCONF'] = (
             pwm_ofs | (pwm_grad << 8) | (pwm_freq << 16)
-            | (pwm_autoscale << 18) | (pwm_autograd << 18)
+            | (pwm_autoscale << 18) | (pwm_autograd << 19)
             | (pwm_reg << 24) | (pwm_lim << 28))
     def current_bits(self, current, sense_resistor, vsense_on):
         sense_resistor += 0.020
