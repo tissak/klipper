@@ -5,6 +5,9 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import re
 
+class error(Exception):
+    pass
+
 
 ######################################################################
 # Hardware pin names
@@ -35,9 +38,11 @@ def beaglebone_pins():
     return gpios
 
 MCU_PINS = {
-    "atmega168": port_pins(5), "atmega328": port_pins(5),
+    "atmega168": port_pins(5),
+    "atmega328": port_pins(5), "atmega328p": port_pins(5),
     "atmega644p": port_pins(4), "atmega1284p": port_pins(4),
     "at90usb1286": port_pins(6), "at90usb646": port_pins(6),
+    "atmega32u4": port_pins(6),
     "atmega1280": port_pins(12), "atmega2560": port_pins(12),
     "sam3x8e": port_pins(4, 32),
     "samd21g": port_pins(2, 32),
@@ -104,6 +109,7 @@ Arduino_Due_analog = [
 Arduino_from_mcu = {
     "atmega168": (Arduino_standard, Arduino_analog_standard),
     "atmega328": (Arduino_standard, Arduino_analog_standard),
+    "atmega328p": (Arduino_standard, Arduino_analog_standard),
     "atmega644p": (Sanguino, Sanguino_analog),
     "atmega1280": (Arduino_mega, Arduino_analog_mega),
     "atmega2560": (Arduino_mega, Arduino_analog_mega),
@@ -111,7 +117,9 @@ Arduino_from_mcu = {
 }
 
 def update_map_arduino(pins, mcu):
-    dpins, apins = Arduino_from_mcu.get(mcu, ([], []))
+    if mcu not in Arduino_from_mcu:
+        raise error("Arduino aliases not supported on mcu '%s'" % (mcu,))
+    dpins, apins = Arduino_from_mcu[mcu]
     for i in range(len(dpins)):
         pins['ar' + str(i)] = pins[dpins[i]]
     for i in range(len(apins)):
@@ -152,6 +160,8 @@ beagleboneblack_mappings = {
 }
 
 def update_map_beaglebone(pins, mcu):
+    if mcu != 'pru':
+        raise error("Beaglebone aliases not supported on mcu '%s'" % (mcu,))
     for pin, gpio in beagleboneblack_mappings.items():
         pins[pin] = pins[gpio]
 
@@ -174,6 +184,8 @@ class PinResolver:
             update_map_arduino(self.pins, self.mcu_type)
         elif mapping_name == 'beaglebone':
             update_map_beaglebone(self.pins, self.mcu_type)
+        else:
+            raise error("Unknown pin alias mapping '%s'" % (mapping_name,))
     def update_command(self, cmd):
         def pin_fixup(m):
             name = m.group('name')
@@ -191,9 +203,6 @@ class PinResolver:
 ######################################################################
 # Pin to chip mapping
 ######################################################################
-
-class error(Exception):
-    pass
 
 class PrinterPins:
     error = error

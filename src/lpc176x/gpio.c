@@ -4,6 +4,7 @@
 //
 // This file may be distributed under the terms of the GNU GPLv3 license.
 
+#include <string.h> // ffs
 #include "LPC17xx.h" // LPC_PINCON
 #include "autoconf.h" // CONFIG_CLOCK_FREQ
 #include "board/irq.h" // irq_save
@@ -31,6 +32,20 @@ static LPC_GPIO_TypeDef * const digital_regs[] = {
  * General Purpose Input Output (GPIO) pins
  ****************************************************************/
 
+// Enable a peripheral clock
+void
+enable_peripheral_clock(uint32_t pclk)
+{
+    LPC_SC->PCONP |= 1<<pclk;
+    if (pclk < 16) {
+        uint32_t shift = pclk * 2;
+        LPC_SC->PCLKSEL0 = (LPC_SC->PCLKSEL0 & ~(0x3<<shift)) | (0x1<<shift);
+    } else {
+        uint32_t shift = (pclk - 16) * 2;
+        LPC_SC->PCLKSEL1 = (LPC_SC->PCLKSEL1 & ~(0x3<<shift)) | (0x1<<shift);
+    }
+}
+
 // Set the mode and extended function of a pin
 void
 gpio_peripheral(int bank, int pin, int func, int pullup)
@@ -50,6 +65,16 @@ gpio_peripheral(int bank, int pin, int func, int pullup)
     irq_restore(flag);
 }
 
+// Convert a register and bit location back to an integer pin identifier
+static int
+regs_to_pin(LPC_GPIO_TypeDef *regs, uint32_t bit)
+{
+    int i;
+    for (i=0; i<ARRAY_SIZE(digital_regs); i++)
+        if (digital_regs[i] == regs)
+            return GPIO(i, ffs(bit)-1);
+    return 0;
+}
 
 struct gpio_out
 gpio_out_setup(uint8_t pin, uint8_t val)
@@ -57,17 +82,26 @@ gpio_out_setup(uint8_t pin, uint8_t val)
     if (GPIO2PORT(pin) >= ARRAY_SIZE(digital_regs))
         goto fail;
     LPC_GPIO_TypeDef *regs = digital_regs[GPIO2PORT(pin)];
-    uint32_t bit = GPIO2BIT(pin);
-    irqstatus_t flag = irq_save();
-    if (val)
-        regs->FIOSET = bit;
-    else
-        regs->FIOCLR = bit;
-    regs->FIODIR |= bit;
-    irq_restore(flag);
-    return (struct gpio_out){ .regs=regs, .bit=bit };
+    struct gpio_out g = { .regs=regs, .bit=GPIO2BIT(pin) };
+    gpio_out_reset(g, val);
+    return g;
 fail:
     shutdown("Not an output pin");
+}
+
+void
+gpio_out_reset(struct gpio_out g, uint8_t val)
+{
+    LPC_GPIO_TypeDef *regs = g.regs;
+    int pin = regs_to_pin(regs, g.bit);
+    irqstatus_t flag = irq_save();
+    if (val)
+        regs->FIOSET = g.bit;
+    else
+        regs->FIOCLR = g.bit;
+    regs->FIODIR |= g.bit;
+    gpio_peripheral(GPIO2PORT(pin), pin % 32, 0, 0);
+    irq_restore(flag);
 }
 
 void
@@ -101,16 +135,23 @@ gpio_in_setup(uint8_t pin, int8_t pull_up)
 {
     if (GPIO2PORT(pin) >= ARRAY_SIZE(digital_regs))
         goto fail;
-    uint32_t port = GPIO2PORT(pin);
-    LPC_GPIO_TypeDef *regs = digital_regs[port];
-    uint32_t bit = GPIO2BIT(pin);
-    irqstatus_t flag = irq_save();
-    gpio_peripheral(port, pin % 32, 0, pull_up);
-    regs->FIODIR &= ~bit;
-    irq_restore(flag);
-    return (struct gpio_in){ .regs=regs, .bit=bit };
+    LPC_GPIO_TypeDef *regs = digital_regs[GPIO2PORT(pin)];
+    struct gpio_in g = { .regs=regs, .bit=GPIO2BIT(pin) };
+    gpio_in_reset(g, pull_up);
+    return g;
 fail:
     shutdown("Not an input pin");
+}
+
+void
+gpio_in_reset(struct gpio_in g, int8_t pull_up)
+{
+    LPC_GPIO_TypeDef *regs = g.regs;
+    int pin = regs_to_pin(regs, g.bit);
+    irqstatus_t flag = irq_save();
+    gpio_peripheral(GPIO2PORT(pin), pin % 32, 0, pull_up);
+    regs->FIODIR &= ~g.bit;
+    irq_restore(flag);
 }
 
 uint8_t
@@ -151,10 +192,9 @@ gpio_adc_setup(uint8_t pin)
 
     uint32_t prescal = DIV_ROUND_UP(CONFIG_CLOCK_FREQ*4, ADC_FREQ_MAX) - 1;
     uint32_t adcr = (1<<21) | ((prescal & 0xff) << 8);
-    if (!(LPC_SC->PCONP & (1<<12))) {
+    if (!(LPC_SC->PCONP & (1<<PCLK_ADC))) {
         // Power up ADC
-        LPC_SC->PCONP |= 1<<12;
-        LPC_SC->PCLKSEL0 = (LPC_SC->PCLKSEL0 & ~(0x3<<24)) | (0x1<<24);
+        enable_peripheral_clock(PCLK_ADC);
         LPC_ADC->ADCR = adcr;
     }
 
